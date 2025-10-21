@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14.19-alpine
+    container_name: sailpoint-postgres
+    environment:
+      POSTGRES_DB: sailpoint_poc
+      POSTGRES_USER: sailpoint
+      POSTGRES_PASSWORD: sailpoint123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sailpoint"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
