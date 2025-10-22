@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="002-create-indexes" author="system">
+        <!-- Index on status for filtering -->
+        <createIndex indexName="idx_access_requests_status" tableName="access_requests">
+            <column name="status"/>
+        </createIndex>
+
+        <!-- Index on created_at for sorting -->
+        <createIndex indexName="idx_access_requests_created_at" tableName="access_requests">
+            <column name="created_at"/>
+        </createIndex>
+
+        <!-- Index on status and created_at for optimizing the FOR UPDATE SKIP LOCKED query -->
+        <createIndex indexName="idx_access_requests_status_created_at" tableName="access_requests">
+            <column name="status"/>
+            <column name="created_at"/>
+        </createIndex>
+
+        <!-- Index on sailpoint_request_id for lookups -->
+        <createIndex indexName="idx_access_requests_sailpoint_id" tableName="access_requests">
+            <column name="sailpoint_request_id"/>
+        </createIndex>
+
+        <!-- Index on requester_id for queries -->
+        <createIndex indexName="idx_access_requests_requester_id" tableName="access_requests">
+            <column name="requester_id"/>
+        </createIndex>
+
+        <!-- Index on target_user_id for queries -->
+        <createIndex indexName="idx_access_requests_target_user_id" tableName="access_requests">
+            <column name="target_user_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
