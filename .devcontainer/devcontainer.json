@@ -1,0 +1,9 @@
+{
+  "name": "sailpoint-access-request-poc",
+  "image": "mcr.microsoft.com/devcontainers/java:17",
+  "containerEnv": {
+    "JAVA_HOME": "/usr/lib/jvm/java-17-openjdk-amd64"
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y openjdk-17-jdk || true && sudo tee /etc/profile.d/java.sh > /dev/null <<'EOF'\nexport JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64\nexport PATH=$JAVA_HOME/bin:$PATH\nEOF",
+  "remoteUser": "vscode"
+}
