@@ -52,24 +52,34 @@ This application follows **Hexagonal Architecture** (Ports and Adapters) princip
 
 ## Technology Stack
 
-- **Java 21**
+- **Java 17**
 - **Spring Boot 3.5.6**
 - **PostgreSQL** - Database
 - **Liquibase 4.29.2** - Database migrations
 - **jOOQ 3.19.11** - Type-safe SQL
-- **JobRunr 7.3.3** - Background job processing
+- **JobRunr 8.0.2** - Background job processing
 - **Feign 13.5** - HTTP client
 - **Lombok** - Reduce boilerplate code
 - **Maven** - Build tool
 
 ## Prerequisites
 
-- Java 21 or higher
+- Java 17 or higher
 - Maven 3.6+
 - PostgreSQL 12+ running on `localhost:5432`
 - Database: `sailpoint_access_request`
 
 ## Database Setup
+
+### Option 1: Using Docker Compose (Recommended)
+
+```bash
+docker-compose up -d
+```
+
+This will start a PostgreSQL 16 instance with the database `sailpoint_access_request` already created.
+
+### Option 2: Manual PostgreSQL Setup
 
 Create the PostgreSQL database:
 
@@ -390,6 +400,22 @@ src/
 ```bash
 mvn test
 ```
+
+### Running Tests
+
+The project includes comprehensive unit tests for the domain service layer.
+
+```bash
+mvn test
+```
+
+**Test Coverage:**
+- ✅ AccessRequestService validation tests
+- ✅ Create access request tests
+- ✅ Process access request tests
+- ✅ Get access request tests
+- ✅ Retry failed requests tests
+- ✅ Exception handling tests
 
 ## Monitoring
 
