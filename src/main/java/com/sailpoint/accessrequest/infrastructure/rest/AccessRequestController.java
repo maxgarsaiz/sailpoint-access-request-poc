@@ -4,6 +4,8 @@ import com.sailpoint.accessrequest.domain.model.AccessRequest;
 import com.sailpoint.accessrequest.domain.model.RequestStatus;
 import com.sailpoint.accessrequest.domain.service.AccessRequestService;
 import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

@@ -8,6 +8,7 @@ import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.time.Instant;
 
 @Slf4j
 @Component
@@ -29,7 +30,8 @@ public class AccessRequestJobScheduler {
     }
 
     public void scheduleDelayedProcessing(Long requestId, Duration delay) {
-        jobScheduler.schedule(() -> processAccessRequest(requestId), delay);
+        Instant scheduledAt = Instant.now().plus(delay);
+        jobScheduler.schedule(scheduledAt, () -> processAccessRequest(requestId));
         log.info("Scheduled delayed processing for access request {} with delay {}", requestId, delay);
     }
 
