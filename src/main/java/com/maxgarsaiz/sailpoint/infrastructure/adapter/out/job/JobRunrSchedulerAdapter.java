@@ -5,6 +5,8 @@ import com.maxgarsaiz.sailpoint.domain.port.out.JobSchedulerPort;
 import com.maxgarsaiz.sailpoint.infrastructure.config.PollingConfigurationProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.jobrunr.jobs.JobId;
 import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +34,7 @@ public class JobRunrSchedulerAdapter implements JobSchedulerPort {
             pollingConfig.getMaxRetries(),
             pollingConfig.getRetryIntervalSeconds());
         
-        jobScheduler.schedule(scheduledAt, () -> executePoolingUseCase.executePooling(accessRequestId));
+        jobScheduler.schedule(accessRequestId, scheduledAt, () -> executePoolingUseCase.executePooling(accessRequestId));
         
         log.info("Pooling job scheduled for access request: {} at {}", accessRequestId, scheduledAt);
     }

@@ -47,7 +47,7 @@ public class JobRunrConfig {
         boolean isDashboardEnabled = true;
         
         // Configure retry filter with custom settings
-        var retryFilter = new RetryFilter(pollingConfig.getMaxRetries());
+        var retryFilter = new RetryFilter(pollingConfig.getMaxRetries(), 0);
         
         JobScheduler jobScheduler = JobRunr.configure()
             .useJobActivator(jobActivator)

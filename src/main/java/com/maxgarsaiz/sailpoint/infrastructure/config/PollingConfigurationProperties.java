@@ -40,13 +40,6 @@ public class PollingConfigurationProperties {
     private int initialDelaySeconds = 5;
     
     /**
-     * Timeout for acquiring lock on access request (in minutes).
-     * Default: 10 minutes
-     */
-    @Min(1)
-    private int lockTimeoutMinutes = 10;
-    
-    /**
      * Get retry interval as Duration
      */
     public Duration getRetryInterval() {
@@ -58,12 +51,5 @@ public class PollingConfigurationProperties {
      */
     public Duration getInitialDelay() {
         return Duration.ofSeconds(initialDelaySeconds);
-    }
-    
-    /**
-     * Get lock timeout as Duration
-     */
-    public Duration getLockTimeout() {
-        return Duration.ofMinutes(lockTimeoutMinutes);
     }
 }

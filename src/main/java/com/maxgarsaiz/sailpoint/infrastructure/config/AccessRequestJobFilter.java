@@ -5,13 +5,14 @@ import com.maxgarsaiz.sailpoint.domain.model.AccessRequest;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequestStatus;
 import com.maxgarsaiz.sailpoint.domain.port.out.AccessRequestRepositoryPort;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.jobs.Job;
 import org.jobrunr.jobs.JobParameter;
 import org.jobrunr.jobs.filters.JobClientFilter;
 import org.jobrunr.jobs.filters.JobServerFilter;
 import org.jobrunr.jobs.states.FailedState;
+import org.jobrunr.storage.StorageProvider;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -19,17 +20,25 @@ import java.util.UUID;
 
 /**
  * JobRunr filter to handle Access Request state transitions based on job lifecycle events.
- * Automatically marks AccessRequest as FAILED when JobRunr exhausts all retries.
+ * Automatically marks AccessRequest as FAILED when JobRunr exhausts all retries and
+ * deletes the job to allow new retry attempts.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter {
     
     private final AccessRequestRepositoryPort accessRequestRepository;
+    private final StorageProvider storageProvider;
+
+    // ✅ Use constructor injection with @Lazy to break circular dependency
+    public AccessRequestJobFilter(
+            AccessRequestRepositoryPort accessRequestRepository,
+            @Lazy StorageProvider storageProvider) {
+        this.accessRequestRepository = accessRequestRepository;
+        this.storageProvider = storageProvider;
+    }
 
     public void onCreating(Job job) {
-        // Optional: log when pooling job is created
         if (isPoolingJob(job)) {
             UUID accessRequestId = extractAccessRequestId(job);
             log.debug("Creating pooling job for access request: {}", accessRequestId);
@@ -37,7 +46,6 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
     }
 
     public void onCreated(Job job) {
-        // Optional: additional logic when job is created
         if (isPoolingJob(job)) {
             UUID accessRequestId = extractAccessRequestId(job);
             log.info("Pooling job created for access request: {}", accessRequestId);
@@ -46,7 +54,6 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
 
     @Override
     public void onProcessing(Job job) {
-        // Optional: log when job starts processing
         if (isPoolingJob(job)) {
             UUID accessRequestId = extractAccessRequestId(job);
             log.debug("Processing pooling job for access request: {}", accessRequestId);
@@ -55,7 +62,6 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
 
     @Override
     public void onProcessingSucceeded(Job job) {
-        // Job succeeded - AccessRequest status is already updated in PoolingService
         if (isPoolingJob(job)) {
             UUID accessRequestId = extractAccessRequestId(job);
             log.info("✅ Pooling job succeeded for access request: {}", accessRequestId);
@@ -64,7 +70,6 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
 
     @Override
     public void onProcessingFailed(Job job, Exception e) {
-        // Job failed but will still be retried - just log, don't update AccessRequest yet
         if (isPoolingJob(job)) {
             UUID accessRequestId = extractAccessRequestId(job);
             log.warn("⚠️ Pooling job failed (will retry) for access request: {}. Error: {}", 
@@ -74,12 +79,11 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
 
     @Override
     public void onFailedAfterRetries(Job job) {
-        // THIS IS THE KEY METHOD - Job exhausted all retries
         if (isPoolingJob(job)) {
             UUID accessRequestId = extractAccessRequestId(job);
             
             if (accessRequestId != null) {
-                markAccessRequestAsFailed(accessRequestId, job);
+                markAccessRequestAsFailedAndDeleteJob(accessRequestId, job);
             }
         }
     }
@@ -91,7 +95,6 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
 
     private UUID extractAccessRequestId(Job job) {
         try {
-            // The first parameter of executePooling is the accessRequestId (UUID)
             JobParameter jobParameter = job.getJobDetails().getJobParameters().get(0);
             var object = jobParameter.getObject();
             if (object instanceof UUID uuid) {
@@ -109,7 +112,7 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
         }
     }
 
-    private void markAccessRequestAsFailed(UUID accessRequestId, Job job) {
+    private void markAccessRequestAsFailedAndDeleteJob(UUID accessRequestId, Job job) {
         try {
             Optional<FailedState> lastFailedState = job.getLastJobStateOfType(FailedState.class);
             String errorMessage = lastFailedState
@@ -128,16 +131,45 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
                 
                 log.error("🔴 Access request {} marked as FAILED after exhausting all retries. " +
                     "Last error: {}", accessRequestId, errorMessage);
+                
+                // ✅ DELETE the job from JobRunr to allow new retries
+                deleteJobFromStorage(job);
+                
             } else {
                 log.info("Access request {} is already in status: {}, not marking as FAILED", 
                     accessRequestId, accessRequest.getStatus());
+                
+                // Still delete the job even if status changed
+                deleteJobFromStorage(job);
             }
             
         } catch (EntityNotFoundException e) {
             log.error("Access request {} not found when trying to mark as FAILED", 
                 accessRequestId, e);
+            // Delete the job anyway
+            deleteJobFromStorage(job);
+            
         } catch (Exception e) {
             log.error("Failed to mark access request {} as FAILED", accessRequestId, e);
+            // Try to delete the job anyway to avoid blocking future retries
+            deleteJobFromStorage(job);
         }
     }
+    
+    /**
+     * Deletes a job from JobRunr storage permanently.
+     * This allows new jobs with the same name to be enqueued.
+     */
+    private void deleteJobFromStorage(Job job) {
+        try {
+            storageProvider.deletePermanently(job.getId());
+            log.info("🗑️  Deleted job {} from JobRunr storage to allow new retry attempts", 
+                job.getId());
+        } catch (Exception e) {
+            log.error("💥 Failed to delete job {} from JobRunr storage. " +
+                "This may prevent future retries for the same access request.", 
+                job.getId(), e);
+        }
+    }
+
 }

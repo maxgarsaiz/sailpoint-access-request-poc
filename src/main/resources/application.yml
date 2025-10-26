@@ -34,8 +34,6 @@ sailpoint:
     retry-interval-seconds: 5
     # Initial delay before first polling attempt in seconds
     initial-delay-seconds: 30
-    # Timeout for acquiring lock on access request (in minutes)
-    lock-timeout-minutes: 10
     
 logging:
   level:
