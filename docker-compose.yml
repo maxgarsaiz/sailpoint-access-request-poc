@@ -18,5 +18,16 @@ services:
       timeout: 5s
       retries: 5
 
+  mock-sailpoint:
+    image: mockserver/mockserver:5.15.0
+    container_name: mock-sailpoint
+    ports:
+      - "9090:1080"
+    environment:
+      MOCKSERVER_PROPERTY_FILE: /config/mockserver.properties
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/expectations.json
+    volumes:
+      - ./mockserver-expectations.json:/config/expectations.json:ro
+
 volumes:
   postgres_data:

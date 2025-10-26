@@ -47,11 +47,48 @@ public class AccessRequest {
         this.status = AccessRequestStatus.PENDING;
         this.updatedAt = LocalDateTime.now();
     }
+    
+    /**
+     * Checks if this request can be retried.
+     * 
+     * @return true if the request is in a retryable state (FAILED or POOLING)
+     */
+    public boolean isRetryable() {
+        return status == AccessRequestStatus.FAILED || status == AccessRequestStatus.POOLING;
+    }
+    
+    /**
+     * Checks if this request is in a terminal state (COMPLETED).
+     * 
+     * @return true if the request is completed
+     */
+    public boolean isCompleted() {
+        return status == AccessRequestStatus.COMPLETED;
+    }
+    
+    /**
+     * Checks if this request is currently being processed.
+     * 
+     * @return true if the request is in POOLING status
+     */
+    public boolean isProcessing() {
+        return status == AccessRequestStatus.POOLING;
+    }
+    
+    /**
+     * Checks if the request has been sent to Sailpoint.
+     * 
+     * @return true if sailpointRequestId is not null
+     */
+    public boolean hasProviderRequestId() {
+        return sailpointRequestId != null && !sailpointRequestId.isBlank();
+    }
 
     private void validateTransition(AccessRequestStatus newStatus) {
         if (!this.status.canTransitionTo(newStatus)) {
             throw new InvalidStateTransitionException(
-                String.format("Cannot transition from %s to %s", this.status, newStatus)
+                String.format("Cannot transition from %s to %s for request %s", 
+                    this.status, newStatus, this.id)
             );
         }
     }

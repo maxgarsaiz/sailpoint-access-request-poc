@@ -1,0 +1,36 @@
+[
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/sailpoint/api/access-requests"
+    },
+    "httpResponse": {
+      "statusCode": 202,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "requestId": "sp-mock-12345",
+        "status": "PENDING",
+        "message": "Access request created successfully and is being processed"
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/sailpoint/api/access-requests/.*"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "requestId": "sp-mock-12345",
+        "status": "PENDING",
+        "message": "Access request created successfully and is being processed"
+      }
+    }
+  }
+]

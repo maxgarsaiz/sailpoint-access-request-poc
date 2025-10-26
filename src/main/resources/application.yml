@@ -22,31 +22,19 @@ spring:
 server:
   port: 8080
 
-org:
-  jobrunr:
-    background-job-server:
-      enabled: true
-      worker-count: 4
-      poll-interval-in-seconds: 15
-      delete-succeeded-jobs-after: 36
-      permanently-delete-deleted-jobs-after: 72
-    dashboard:
-      enabled: true
-      port: 8080
-    database:
-      type: sql
-      skip-create: false
-    jobs:
-      default-number-of-retries: 5
-      retry-back-off-time-seed: 30
-
 sailpoint:
   client:
     base-url: http://localhost:9090/sailpoint/api
     connect-timeout: 5000
     read-timeout: 10000
-  
   pooling:
+    # Maximum number of polling attempts before marking request as failed
+    max-retries: 4
+    # Interval between polling attempts in seconds (60s = 1 minute)
+    retry-interval-seconds: 5
+    # Initial delay before first polling attempt in seconds
+    initial-delay-seconds: 30
+    # Timeout for acquiring lock on access request (in minutes)
     lock-timeout-minutes: 10
     
 logging:
