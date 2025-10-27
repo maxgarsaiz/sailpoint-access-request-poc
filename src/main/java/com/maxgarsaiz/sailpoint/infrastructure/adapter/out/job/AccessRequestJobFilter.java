@@ -1,4 +1,4 @@
-package com.maxgarsaiz.sailpoint.infrastructure.config;
+package com.maxgarsaiz.sailpoint.infrastructure.adapter.out.job;
 
 import com.maxgarsaiz.sailpoint.domain.exception.EntityNotFoundException;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequest;
@@ -8,7 +8,6 @@ import com.maxgarsaiz.sailpoint.domain.port.out.AccessRequestRepositoryPort;
 import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.jobs.Job;
 import org.jobrunr.jobs.JobParameter;
-import org.jobrunr.jobs.filters.JobClientFilter;
 import org.jobrunr.jobs.filters.JobServerFilter;
 import org.jobrunr.jobs.states.FailedState;
 import org.jobrunr.storage.StorageProvider;
@@ -25,7 +24,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter {
+public class AccessRequestJobFilter implements JobServerFilter {
     
     private final AccessRequestRepositoryPort accessRequestRepository;
     private final StorageProvider storageProvider;
@@ -36,20 +35,6 @@ public class AccessRequestJobFilter implements JobClientFilter, JobServerFilter 
             @Lazy StorageProvider storageProvider) {
         this.accessRequestRepository = accessRequestRepository;
         this.storageProvider = storageProvider;
-    }
-
-    public void onCreating(Job job) {
-        if (isPoolingJob(job)) {
-            UUID accessRequestId = extractAccessRequestId(job);
-            log.debug("Creating pooling job for access request: {}", accessRequestId);
-        }
-    }
-
-    public void onCreated(Job job) {
-        if (isPoolingJob(job)) {
-            UUID accessRequestId = extractAccessRequestId(job);
-            log.info("Pooling job created for access request: {}", accessRequestId);
-        }
     }
 
     @Override

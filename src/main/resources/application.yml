@@ -29,9 +29,9 @@ sailpoint:
     read-timeout: 10000
   pooling:
     # Maximum number of polling attempts before marking request as failed
-    max-retries: 4
+    max-retries: 2
     # Interval between polling attempts in seconds (60s = 1 minute)
-    retry-interval-seconds: 5
+    retry-interval-seconds: 10
     # Initial delay before first polling attempt in seconds
     initial-delay-seconds: 30
     

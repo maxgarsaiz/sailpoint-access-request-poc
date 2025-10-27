@@ -6,7 +6,6 @@ import com.maxgarsaiz.sailpoint.infrastructure.config.PollingConfigurationProper
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.jobrunr.jobs.JobId;
 import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.stereotype.Component;
 

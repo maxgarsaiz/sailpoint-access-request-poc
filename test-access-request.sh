@@ -23,8 +23,8 @@ echo -e "\n📊 Checking status..."
 curl -s http://localhost:8080/api/v1/access-requests/$ACCESS_REQUEST_ID | jq '.status'
 
 # 4. Esperar a que falle (si max-retries=1, fallará rápido)
-echo -e "\n⏳ Waiting for job to fail (15 seconds)..."
-sleep 15
+echo -e "\n⏳ Waiting for job to fail (40 seconds)..."
+sleep 40
 
 # 5. Verificar que falló
 echo -e "\n📊 Checking if FAILED..."

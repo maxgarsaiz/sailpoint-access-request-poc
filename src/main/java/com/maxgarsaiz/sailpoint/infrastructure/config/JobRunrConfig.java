@@ -12,6 +12,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.maxgarsaiz.sailpoint.infrastructure.adapter.out.job.AccessRequestJobFilter;
+import com.maxgarsaiz.sailpoint.infrastructure.adapter.out.job.DelayRetryFilter;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,7 +50,7 @@ public class JobRunrConfig {
         boolean isDashboardEnabled = true;
         
         // Configure retry filter with custom settings
-        var retryFilter = new RetryFilter(pollingConfig.getMaxRetries(), 0);
+        var retryFilter = new DelayRetryFilter(pollingConfig.getMaxRetries(), 0);
         
         JobScheduler jobScheduler = JobRunr.configure()
             .useJobActivator(jobActivator)
