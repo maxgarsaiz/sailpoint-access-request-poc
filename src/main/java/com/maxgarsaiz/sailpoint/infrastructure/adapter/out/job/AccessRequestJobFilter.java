@@ -10,6 +10,7 @@ import org.jobrunr.jobs.Job;
 import org.jobrunr.jobs.JobParameter;
 import org.jobrunr.jobs.filters.JobServerFilter;
 import org.jobrunr.jobs.states.FailedState;
+import org.jobrunr.scheduling.BackgroundJob;
 import org.jobrunr.storage.StorageProvider;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -27,14 +28,11 @@ import java.util.UUID;
 public class AccessRequestJobFilter implements JobServerFilter {
     
     private final AccessRequestRepositoryPort accessRequestRepository;
-    private final StorageProvider storageProvider;
-
     // ✅ Use constructor injection with @Lazy to break circular dependency
     public AccessRequestJobFilter(
             AccessRequestRepositoryPort accessRequestRepository,
             @Lazy StorageProvider storageProvider) {
         this.accessRequestRepository = accessRequestRepository;
-        this.storageProvider = storageProvider;
     }
 
     @Override
@@ -118,26 +116,26 @@ public class AccessRequestJobFilter implements JobServerFilter {
                     "Last error: {}", accessRequestId, errorMessage);
                 
                 // ✅ DELETE the job from JobRunr to allow new retries
-                deleteJobFromStorage(job);
+                deleteJobFromStorage(accessRequestId.toString());
                 
             } else {
                 log.info("Access request {} is already in status: {}, not marking as FAILED", 
                     accessRequestId, accessRequest.getStatus());
                 
                 // Still delete the job even if status changed
-                deleteJobFromStorage(job);
+                deleteJobFromStorage(accessRequestId.toString());
             }
             
         } catch (EntityNotFoundException e) {
             log.error("Access request {} not found when trying to mark as FAILED", 
                 accessRequestId, e);
             // Delete the job anyway
-            deleteJobFromStorage(job);
+            deleteJobFromStorage(accessRequestId.toString());
             
         } catch (Exception e) {
             log.error("Failed to mark access request {} as FAILED", accessRequestId, e);
             // Try to delete the job anyway to avoid blocking future retries
-            deleteJobFromStorage(job);
+            deleteJobFromStorage(accessRequestId.toString());
         }
     }
     
@@ -145,15 +143,13 @@ public class AccessRequestJobFilter implements JobServerFilter {
      * Deletes a job from JobRunr storage permanently.
      * This allows new jobs with the same name to be enqueued.
      */
-    private void deleteJobFromStorage(Job job) {
+    private void deleteJobFromStorage(String accessRequestId) {
         try {
-            storageProvider.deletePermanently(job.getId());
-            log.info("🗑️  Deleted job {} from JobRunr storage to allow new retry attempts", 
-                job.getId());
+            BackgroundJob.deleteRecurringJob(accessRequestId);
+            log.info("🗑️  Deleted job {} from JobRunr storage to allow new retry attempts", accessRequestId);
         } catch (Exception e) {
             log.error("💥 Failed to delete job {} from JobRunr storage. " +
-                "This may prevent future retries for the same access request.", 
-                job.getId(), e);
+                "This may prevent future retries for the same access request.", accessRequestId, e);
         }
     }
 

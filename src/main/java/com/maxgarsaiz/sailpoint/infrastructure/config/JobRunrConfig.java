@@ -1,7 +1,6 @@
 package com.maxgarsaiz.sailpoint.infrastructure.config;
 
 import org.jobrunr.configuration.JobRunr;
-import org.jobrunr.jobs.filters.RetryFilter;
 import org.jobrunr.jobs.mappers.JobMapper;
 import org.jobrunr.scheduling.JobScheduler;
 import org.jobrunr.server.JobActivator;
@@ -50,7 +49,7 @@ public class JobRunrConfig {
         boolean isDashboardEnabled = true;
         
         // Configure retry filter with custom settings
-        var retryFilter = new DelayRetryFilter(pollingConfig.getMaxRetries(), 0);
+        var retryFilter = new DelayRetryFilter(pollingConfig.getMaxRetries(), pollingConfig.getRetryIntervalSeconds());
         
         JobScheduler jobScheduler = JobRunr.configure()
             .useJobActivator(jobActivator)
@@ -61,7 +60,7 @@ public class JobRunrConfig {
                 isBackgroundJobServerEnabled, 
                 usingStandardBackgroundJobServerConfiguration()
                     .andWorkerCount(4)
-                    .andPollIntervalInSeconds(pollingConfig.getRetryIntervalSeconds()))
+                    .andPollIntervalInSeconds(5))
             .useDashboardIf(isDashboardEnabled, 8000)
             .initialize()
             .getJobScheduler();

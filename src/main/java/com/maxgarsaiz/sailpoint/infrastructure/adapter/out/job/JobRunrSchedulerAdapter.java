@@ -10,7 +10,6 @@ import org.jobrunr.scheduling.JobScheduler;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.UUID;
 
 @Slf4j
@@ -24,17 +23,16 @@ public class JobRunrSchedulerAdapter implements JobSchedulerPort {
     
     @Override
     public void schedulePoolingJob(UUID accessRequestId) {
-        Duration initialDelay = pollingConfig.getInitialDelay();
-        Instant scheduledAt = Instant.now().plus(initialDelay);
-        
+        Duration scheduleAt = pollingConfig.getInitialDelay();
+
         log.info("Scheduling pooling job for access request: {} with initial delay of {}s (max retries: {}, interval: {}s)", 
-            accessRequestId, 
-            initialDelay.toSeconds(),
-            pollingConfig.getMaxRetries(),
-            pollingConfig.getRetryIntervalSeconds());
+            accessRequestId,
+            pollingConfig.getInitialDelaySeconds(),
+            pollingConfig.getRetryIntervalSeconds(),
+            pollingConfig.getMaxRetries());
         
-        jobScheduler.schedule(accessRequestId, scheduledAt, () -> executePoolingUseCase.executePooling(accessRequestId));
-        
-        log.info("Pooling job scheduled for access request: {} at {}", accessRequestId, scheduledAt);
+        jobScheduler.scheduleRecurrently(accessRequestId.toString(), scheduleAt, () -> executePoolingUseCase.executePooling(accessRequestId));
+
+        log.info("Recurring pooling job scheduled for access request: {} with job ID: {}", accessRequestId, accessRequestId);
     }
 }

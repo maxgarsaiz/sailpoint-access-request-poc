@@ -9,6 +9,7 @@ import com.maxgarsaiz.sailpoint.infrastructure.config.PollingConfigurationProper
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.jobs.annotations.Job;
+import org.jobrunr.scheduling.BackgroundJob;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -240,6 +241,7 @@ public class AccessRequestPoolingService implements ExecuteAccessRequestPoolingU
         
         accessRequest.markAsCompleted(status.requestId());
         repositoryPort.update(accessRequest);
+        BackgroundJob.deleteRecurringJob(accessRequest.getId().toString());
         
         log.info("✅ Access request COMPLETED successfully. ID: {}, Provider ID: {}", 
             accessRequest.getId(), status.requestId());
@@ -254,6 +256,7 @@ public class AccessRequestPoolingService implements ExecuteAccessRequestPoolingU
         
         accessRequest.markAsFailed();
         repositoryPort.update(accessRequest);
+        BackgroundJob.deleteRecurringJob(accessRequest.getId().toString());
         
         log.error("❌ Access request FAILED in identity provider. ID: {}, Reason: {}", 
             accessRequest.getId(), status.message());
