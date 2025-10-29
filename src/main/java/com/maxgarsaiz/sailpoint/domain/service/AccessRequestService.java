@@ -34,7 +34,6 @@ public class AccessRequestService implements CreateAccessRequestUseCase, GetAcce
         AccessRequest accessRequest = AccessRequest.builder()
             .id(UUID.randomUUID())
             .userId(command.userId())
-            .accessType(command.accessType())
             .justification(command.justification())
             .status(AccessRequestStatus.PENDING)
             .createdAt(LocalDateTime.now())
@@ -83,8 +82,8 @@ public class AccessRequestService implements CreateAccessRequestUseCase, GetAcce
     public List<AccessRequest> getAll() {
         log.debug("Getting all access requests");
         return repositoryPort.findByStatusIn(
-            List.of(AccessRequestStatus.PENDING, AccessRequestStatus.POOLING, 
-                    AccessRequestStatus.COMPLETED, AccessRequestStatus.FAILED)
+            List.of(AccessRequestStatus.PENDING, AccessRequestStatus.PROCESSING_IN_PROGRESS, 
+                    AccessRequestStatus.PROCESSING_REQUIRES_ATTENTION, AccessRequestStatus.PROCESSING_COMPLETED)
         );
     }
 }

@@ -56,7 +56,7 @@ public class AccessRequestRetryService implements RetryAccessRequestsUseCase {
     @Transactional(readOnly = true)
     public BulkRetryResult retryFailed() {
         log.info("Scheduling retry for all failed access requests");
-        List<AccessRequest> failedRequests = repositoryPort.findByStatus(AccessRequestStatus.FAILED);
+        List<AccessRequest> failedRequests = repositoryPort.findByStatus(AccessRequestStatus.PROCESSING_REQUIRES_ATTENTION);
         return processBulkRetry(failedRequests);
     }
     
@@ -82,7 +82,7 @@ public class AccessRequestRetryService implements RetryAccessRequestsUseCase {
     @Transactional(readOnly = true)
     public BulkRetryResult retryPooling() {
         log.info("Scheduling retry for all pooling access requests");
-        List<AccessRequest> poolingRequests = repositoryPort.findByStatus(AccessRequestStatus.POOLING);
+        List<AccessRequest> poolingRequests = repositoryPort.findByStatus(AccessRequestStatus.PROCESSING_IN_PROGRESS);
         return processBulkRetry(poolingRequests);
     }
     

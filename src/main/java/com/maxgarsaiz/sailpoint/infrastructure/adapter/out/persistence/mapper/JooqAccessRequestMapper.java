@@ -16,7 +16,6 @@ public class JooqAccessRequestMapper {
         return AccessRequest.builder()
             .id((UUID) record.get("id"))
             .userId((String) record.get("user_id"))
-            .accessType((String) record.get("access_type"))
             .justification((String) record.get("justification"))
             .status(AccessRequestStatus.valueOf((String) record.get("status")))
             .sailpointRequestId((String) record.get("sailpoint_request_id"))

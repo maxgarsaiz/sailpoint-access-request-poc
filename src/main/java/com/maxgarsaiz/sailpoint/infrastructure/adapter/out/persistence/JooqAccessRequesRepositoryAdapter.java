@@ -1,7 +1,5 @@
 package com.maxgarsaiz.sailpoint.infrastructure.adapter.out.persistence;
 
-import com.maxgarsaiz.sailpoint.domain.exception.EntityAlreadyLockedException;
-import com.maxgarsaiz.sailpoint.domain.exception.EntityNotFoundException;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequest;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequestStatus;
 import com.maxgarsaiz.sailpoint.domain.port.in.RetryAccessRequestsUseCase.RetryFilters;
@@ -11,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -39,7 +36,6 @@ public class JooqAccessRequesRepositoryAdapter implements AccessRequestRepositor
             .columns(
                 field("id"),
                 field("user_id"),
-                field("access_type"),
                 field("justification"),
                 field("status"),
                 field("sailpoint_request_id"),
@@ -49,7 +45,6 @@ public class JooqAccessRequesRepositoryAdapter implements AccessRequestRepositor
             .values(
                 accessRequest.getId(),
                 accessRequest.getUserId(),
-                accessRequest.getAccessType(),
                 accessRequest.getJustification(),
                 accessRequest.getStatus().name(),
                 accessRequest.getSailpointRequestId(),
@@ -70,6 +65,15 @@ public class JooqAccessRequesRepositoryAdapter implements AccessRequestRepositor
             .fetchOptional()
             .map(mapper::toDomain);
     }
+
+    @Override
+    public List<AccessRequest> findAll() {
+        log.debug("Finding all access requests");
+        
+        return dsl.selectFrom(table(TABLE))
+            .fetch()
+            .map(mapper::toDomain);
+    }
     
     @Override
     public AccessRequest update(AccessRequest accessRequest) {
@@ -79,7 +83,6 @@ public class JooqAccessRequesRepositoryAdapter implements AccessRequestRepositor
         
         dsl.update(table(TABLE))
             .set(field("user_id"), accessRequest.getUserId())
-            .set(field("access_type"), accessRequest.getAccessType())
             .set(field("justification"), accessRequest.getJustification())
             .set(field("status"), accessRequest.getStatus().name())
             .set(field("sailpoint_request_id"), accessRequest.getSailpointRequestId())
@@ -88,47 +91,6 @@ public class JooqAccessRequesRepositoryAdapter implements AccessRequestRepositor
             .execute();
         
         return accessRequest;
-    }
-    
-    @Override
-    public AccessRequest findByIdAndTransitionToPooling(UUID id) {
-        log.debug("Finding and locking access request: {}", id);
-        
-        // First, check if the record exists at all
-        boolean exists = dsl.fetchExists(
-            dsl.selectFrom(table(TABLE))
-                .where(field("id").eq(id))
-        );
-        
-        if (!exists) {
-            log.warn("Access request not found: {}", id);
-            throw new EntityNotFoundException("AccessRequest", id);
-        }
-        
-        // Try to acquire lock with FOR UPDATE SKIP LOCKED
-        Optional<Record> record = dsl.selectFrom(table(TABLE))
-            .where(field("id").eq(id))
-            .and(field("status").in(AccessRequestStatus.PENDING.name(), AccessRequestStatus.FAILED.name()))
-            .forUpdate()
-            .skipLocked()
-            .fetchOptional();
-        
-        if (record.isEmpty()) {
-            // Record exists but couldn't be locked (already locked or wrong status)
-            log.warn("Access request with id %s is already being processed by another job or not in PENDING/FAILED status", id);
-            throw new EntityAlreadyLockedException("AccessRequest with id %s is already being processed by another job or not in PENDING/FAILED status".formatted(id));
-        }
-        
-        // Successfully locked, now transition to POOLING
-        dsl.update(table(TABLE))
-            .set(field("status"), AccessRequestStatus.POOLING.name())
-            .set(field("updated_at"), LocalDateTime.now())
-            .where(field("id").eq(id))
-            .execute();
-        
-        log.info("Successfully locked and transitioned access request {} to POOLING", id);
-        
-        return findByIdOrThrow(id);
     }
     
     @Override
@@ -191,27 +153,11 @@ public class JooqAccessRequesRepositoryAdapter implements AccessRequestRepositor
             .set(field("updated_at"), LocalDateTime.now())
             .where(field("id").eq(id))
             .and(field("status").in(
-                AccessRequestStatus.FAILED.name(),
-                AccessRequestStatus.POOLING.name()
+                AccessRequestStatus.PROCESSING_REQUIRES_ATTENTION.name(),
+                AccessRequestStatus.PROCESSING_IN_PROGRESS.name()
             ))
             .execute();
         
         return updated > 0;
-    }
-    
-    @Override
-    public void releaseExpiredPoolingLocks(int timeoutMinutes) {
-        log.info("Releasing expired pooling locks older than {} minutes", timeoutMinutes);
-        
-        LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(timeoutMinutes);
-        
-        int released = dsl.update(table(TABLE))
-            .set(field("status"), AccessRequestStatus.PENDING.name())
-            .set(field("updated_at"), LocalDateTime.now())
-            .where(field("status").eq(AccessRequestStatus.POOLING.name()))
-            .and(field("updated_at").lt(cutoffTime))
-            .execute();
-        
-        log.info("Released {} expired pooling locks", released);
     }
 }

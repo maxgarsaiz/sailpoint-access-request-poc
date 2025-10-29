@@ -1,12 +1,14 @@
 package com.maxgarsaiz.sailpoint.domain.model;
 
-import com.maxgarsaiz.sailpoint.domain.exception.InvalidStateTransitionException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -14,82 +16,59 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AccessRequest {
+    
     private UUID id;
     private String userId;
-    private String accessType;
     private String justification;
-    private AccessRequestStatus status;
     private String sailpointRequestId;
+    private AccessRequestStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-    public void markAsPooling() {
-        validateTransition(AccessRequestStatus.POOLING);
-        this.status = AccessRequestStatus.POOLING;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void markAsCompleted(String sailpointRequestId) {
-        validateTransition(AccessRequestStatus.COMPLETED);
-        this.status = AccessRequestStatus.COMPLETED;
-        this.sailpointRequestId = sailpointRequestId;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void markAsFailed() {
-        validateTransition(AccessRequestStatus.FAILED);
-        this.status = AccessRequestStatus.FAILED;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void transitionBackToPending() {
-        validateTransition(AccessRequestStatus.PENDING);
-        this.status = AccessRequestStatus.PENDING;
-        this.updatedAt = LocalDateTime.now();
+    
+    @Builder.Default
+    private List<AccessRequestAttempt> attempts = new ArrayList<>();
+    
+    /**
+     * Gets the last attempt (most recent by creation date).
+     */
+    public AccessRequestAttempt getLastAttempt() {
+        return attempts.stream()
+            .max(Comparator.comparing(AccessRequestAttempt::getCreatedAt))
+            .orElse(null);
     }
     
     /**
-     * Checks if this request can be retried.
+     * Calculates the status based on the last attempt.
      * 
-     * @return true if the request is in a retryable state (FAILED or POOLING)
+     * Rules:
+     * - No attempts → PENDING
+     * - Last attempt IN_PROGRESS → PROCESSING_IN_PROGRESS
+     * - Last attempt COMPLETED → PROCESSING_COMPLETED
+     * - Last attempt FAILED → PROCESSING_REQUIRES_ATTENTION
      */
-    public boolean isRetryable() {
-        return status == AccessRequestStatus.FAILED || status == AccessRequestStatus.POOLING;
-    }
-    
-    /**
-     * Checks if this request is in a terminal state (COMPLETED).
-     * 
-     * @return true if the request is completed
-     */
-    public boolean isCompleted() {
-        return status == AccessRequestStatus.COMPLETED;
-    }
-    
-    /**
-     * Checks if this request is currently being processed.
-     * 
-     * @return true if the request is in POOLING status
-     */
-    public boolean isProcessing() {
-        return status == AccessRequestStatus.POOLING;
-    }
-    
-    /**
-     * Checks if the request has been sent to Sailpoint.
-     * 
-     * @return true if sailpointRequestId is not null
-     */
-    public boolean hasProviderRequestId() {
-        return sailpointRequestId != null && !sailpointRequestId.isBlank();
-    }
-
-    private void validateTransition(AccessRequestStatus newStatus) {
-        if (!this.status.canTransitionTo(newStatus)) {
-            throw new InvalidStateTransitionException(
-                String.format("Cannot transition from %s to %s for request %s", 
-                    this.status, newStatus, this.id)
-            );
+    public AccessRequestStatus calculateStatus() {
+        AccessRequestAttempt lastAttempt = getLastAttempt();
+        
+        if (lastAttempt == null) {
+            return AccessRequestStatus.PENDING;
         }
+        
+        return switch (lastAttempt.getStatus()) {
+            case IN_PROGRESS -> AccessRequestStatus.PROCESSING_IN_PROGRESS;
+            case COMPLETED -> AccessRequestStatus.PROCESSING_COMPLETED;
+            case FAILED -> AccessRequestStatus.PROCESSING_REQUIRES_ATTENTION;
+        };
+    }
+    
+    /**
+     * Updates the status and timestamp.
+     */
+    public void updateStatus(AccessRequestStatus newStatus) {
+        this.status = newStatus;
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    public boolean isCompleted() {
+        return status == AccessRequestStatus.PROCESSING_COMPLETED;
     }
 }

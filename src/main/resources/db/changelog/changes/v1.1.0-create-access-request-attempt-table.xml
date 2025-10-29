@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="v1.1.0-create-access-request-attempt-table" author="maxgarsaiz">
+        <comment>Create access_request_attempt table for tracking retry attempts</comment>
+
+        <createTable tableName="access_request_attempt">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="access_request_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="error_message" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="completed_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint 
+            baseTableName="access_request_attempt"
+            baseColumnNames="access_request_id"
+            constraintName="fk_attempt_access_request"
+            referencedTableName="access_request"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+
+        <createIndex indexName="idx_attempt_access_request_id" tableName="access_request_attempt">
+            <column name="access_request_id"/>
+        </createIndex>
+
+        <createIndex indexName="idx_attempt_status" tableName="access_request_attempt">
+            <column name="status"/>
+        </createIndex>
+
+        <createIndex indexName="idx_attempt_created_at" tableName="access_request_attempt">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="access_request_attempt"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

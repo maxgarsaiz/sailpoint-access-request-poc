@@ -1,6 +1,5 @@
 package com.maxgarsaiz.sailpoint.domain.port.out;
 
-import com.maxgarsaiz.sailpoint.domain.exception.EntityAlreadyLockedException;
 import com.maxgarsaiz.sailpoint.domain.exception.EntityNotFoundException;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequest;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequestStatus;
@@ -13,6 +12,8 @@ import java.util.UUID;
 public interface AccessRequestRepositoryPort {
     
     AccessRequest save(AccessRequest accessRequest);
+
+    AccessRequest update(AccessRequest accessRequest);
     
     /**
      * Finds an access request by ID.
@@ -36,22 +37,7 @@ public interface AccessRequestRepositoryPort {
             .orElseThrow(() -> new EntityNotFoundException("AccessRequest", id));
     }
     
-    AccessRequest update(AccessRequest accessRequest);
-    
-    /**
-     * Attempts to find an access request and acquire an exclusive lock on it,
-     * then transitions it to POOLING status.
-     * 
-     * This method uses pessimistic locking (FOR UPDATE SKIP LOCKED) to ensure
-     * only one job can process the request at a time.
-     * 
-     * @param id the access request ID
-     * @return the locked access request with POOLING status
-     * @throws EntityNotFoundException if the access request doesn't exist
-     * @throws EntityAlreadyLockedException if the request is already locked by another process
-     *         or not in a valid status (PENDING/FAILED) for pooling
-     */
-    AccessRequest findByIdAndTransitionToPooling(UUID id) throws EntityNotFoundException, EntityAlreadyLockedException;
+    List<AccessRequest> findAll();
     
     List<AccessRequest> findByStatus(AccessRequestStatus status);
     
@@ -60,6 +46,5 @@ public interface AccessRequestRepositoryPort {
     List<AccessRequest> findByFilters(RetryFilters filters);
     
     boolean transitionToPendingForRetry(UUID id);
-    
-    void releaseExpiredPoolingLocks(int timeoutMinutes);
 }
+
