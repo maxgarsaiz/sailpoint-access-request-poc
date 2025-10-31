@@ -76,9 +76,9 @@ PENDING ──→ POOLING ──→ COMPLETED
 ## 🔧 Technologies
 
 - **Java 17**
-- **Spring Boot 3.5.6**
-- **JobRunr 7.3.2** - Background job processing with retry mechanism
-- **jOOQ 3.19.15** - Type-safe SQL queries with pessimistic locking
+- **Spring Boot 3.4.0**
+- **JobRunr 8.1.0** - Background job processing with recurring job mechanism
+- **jOOQ 3.19.15** - Type-safe SQL queries with pessimistic locking (persistence layer)
 - **PostgreSQL** - Database
 - **Liquibase** - Database migrations
 - **OpenFeign** - HTTP client for Sailpoint integration
@@ -200,13 +200,18 @@ Content-Type: application/json
 ## 🔄 Background Processing Flow
 
 1. **User creates access request** → Status: `PENDING`
-2. **JobRunr schedules background job** → Transitions to `POOLING`
+2. **JobRunr schedules recurring background job** → Transitions to `POOLING`
 3. **Job acquires lock** (FOR UPDATE SKIP LOCKED)
 4. **First execution**: Create request in Sailpoint
-5. **Subsequent executions**: Check status in Sailpoint
-6. **If completed**: Status → `COMPLETED`
-7. **If failed**: Status → `FAILED`
-8. **If still processing**: Job retries (max 5 times with exponential backoff)
+5. **Subsequent executions**: Check status in Sailpoint (polls continuously)
+6. **If completed**: Status → `COMPLETED`, recurring job terminates
+7. **If failed**: Status → `FAILED`, recurring job terminates
+8. **If still processing**: Job continues polling until completion or failure
+
+**Note**: The pooling job uses `scheduleRecurrently` and only terminates when:
+- The access request is **COMPLETED** in SailPoint
+- The access request is **FAILED** in SailPoint
+- The job cannot continue due to unexpected errors
 
 ## 🔐 Pessimistic Locking
 
