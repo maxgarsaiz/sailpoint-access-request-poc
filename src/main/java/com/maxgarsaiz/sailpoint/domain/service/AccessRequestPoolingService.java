@@ -1,14 +1,14 @@
 package com.maxgarsaiz.sailpoint.domain.service;
 
+import com.maxgarsaiz.sailpoint.domain.model.AccessRequest;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequestAttempt;
+import com.maxgarsaiz.sailpoint.domain.model.AccessRequestStatus;
 import com.maxgarsaiz.sailpoint.domain.port.in.ExecuteAccessRequestPoolingUseCase;
 import com.maxgarsaiz.sailpoint.domain.port.in.ManageAccessRequestAttemptStateUseCase;
 import com.maxgarsaiz.sailpoint.domain.port.out.AccessRequestAttemptRepositoryPort;
 import com.maxgarsaiz.sailpoint.domain.port.out.AccessRequestRepositoryPort;
 import com.maxgarsaiz.sailpoint.domain.port.out.IdentityProviderPort;
-import com.maxgarsaiz.sailpoint.domain.port.out.JobSchedulerPort;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jobrunr.jobs.annotations.Job;
 import org.springframework.stereotype.Service;
@@ -17,21 +17,30 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Service that executes the recurring pooling job for access request attempts.
+ * Service that executes the pooling job for access request attempts.
  * 
- * This job runs indefinitely until:
- * 1. Sailpoint returns COMPLETED or FAILED
- * 2. Job exhausts all retries (handled by filter)
+ * The job is re-scheduled by JobServerFilter.onProcessingSucceeded() until AccessRequest reaches final state.
+ * Uses attemptId as job ID for JobRunr idempotency - no conflicts because previous job is SUCCEEDED.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AccessRequestPoolingService implements ExecuteAccessRequestPoolingUseCase {
     
     private final AccessRequestAttemptRepositoryPort attemptRepository;
+    private final AccessRequestRepositoryPort accessRequestRepository;
     private final IdentityProviderPort identityProviderPort;
     private final ManageAccessRequestAttemptStateUseCase stateService;
-    private final JobSchedulerPort jobSchedulerPort;
+
+    public AccessRequestPoolingService(
+            AccessRequestAttemptRepositoryPort attemptRepository,
+            AccessRequestRepositoryPort accessRequestRepository,
+            IdentityProviderPort identityProviderPort,
+            ManageAccessRequestAttemptStateUseCase stateService) {
+        this.attemptRepository = attemptRepository;
+        this.accessRequestRepository = accessRequestRepository;
+        this.identityProviderPort = identityProviderPort;
+        this.stateService = stateService;
+    }
     
     @Override
     @Job(name = "Pooling Access Request Attempt - %0")
@@ -42,29 +51,28 @@ public class AccessRequestPoolingService implements ExecuteAccessRequestPoolingU
         // Step 1: Validate and get attempt
         AccessRequestAttempt attempt = validateAndGetAccessRequestAttempt(attemptId);
         if (attempt == null) {
-            return; // Job deleted, exit
+            return; // Invalid attempt, exit
         }
         
         // Step 2: Check status in Sailpoint
-        checkAndUpdateStatus(attempt);
+        checkAndUpdateStatus(attempt, attemptId);
     }
     
     /**
-     * Validates the attempt exists, if not deletes the job.
+     * Validates the attempt exists and has provider request ID.
      */
     private AccessRequestAttempt validateAndGetAccessRequestAttempt(UUID attemptId) {
         var attemptOpt = attemptRepository.findById(attemptId);
         
         if (attemptOpt.isEmpty()) {
-            log.error("❌ Attempt {} not found, deleting job", attemptId);
-            jobSchedulerPort.deleteRecurringJob(attemptId);
+            log.error("❌ Attempt {} not found, job will complete", attemptId);
             return null;
         }
+        
         var attempt = attemptOpt.get();
         if (!attempt.hasProviderRequestId()) {
-            log.error("❌ Access request {} has no sailpoint_request_id, deleting job",
+            log.error("❌ Access request {} has no sailpoint_request_id, job will complete",
                 attempt.getAccessRequestId());
-            jobSchedulerPort.deleteRecurringJob(attemptId);
             return null;
         }
 
@@ -72,23 +80,27 @@ public class AccessRequestPoolingService implements ExecuteAccessRequestPoolingU
     }
     
     /**
-     * Checks status in Sailpoint and updates attempt accordingly.
+     * Checks status in Sailpoint and updates both AccessRequest and AccessRequestAttempt.
      */
-    private void checkAndUpdateStatus(AccessRequestAttempt attempt) {
-        UUID attemptId = attempt.getId();
-        String sailpointRequestId = attempt.getSailpointRequestId();
+    private void checkAndUpdateStatus(AccessRequestAttempt attempt, UUID attemptId) {
+        UUID accessRequestId = attempt.getAccessRequestId();
 
-        log.info("📊 Checking status in Sailpoint for request: {} (Sailpoint ID: {}, Attempt ID: {})",
-            attempt.getAccessRequestId(), sailpointRequestId, attemptId);
+        log.info("📊 Checking status in Sailpoint for request: {} (Attempt ID: {})",
+            accessRequestId, attemptId);
 
         try {
-            IdentityProviderPort.AccessRequestResponse response = 
-                identityProviderPort.getRequestStatus(sailpointRequestId);
+            // Get AccessRequest from repository
+            AccessRequest accessRequest = accessRequestRepository.findByIdOrThrow(accessRequestId);
+            
+            // Get status response from Sailpoint
+            IdentityProviderPort.SailpointStatusResponse statusResponse = 
+                    identityProviderPort.getRequestStatus(attempt);
             
             log.info("📬 Received status from Sailpoint: {} for attempt: {}", 
-                response.status(), attemptId);
+                statusResponse.status(), attemptId);
             
-            processProviderStatus(attemptId, response);
+            // Update both AccessRequest and AccessRequestAttempt based on status
+            updateAccessRequestAndAttempt(accessRequest, attempt, statusResponse, attemptId);
             
         } catch (Exception e) {
             log.error("💥 Error checking Sailpoint status for attempt: {}", attemptId, e);
@@ -97,25 +109,55 @@ public class AccessRequestPoolingService implements ExecuteAccessRequestPoolingU
     }
     
     /**
-     * Processes the status from Sailpoint and updates attempt state.
+     * Updates both AccessRequest and AccessRequestAttempt entities based on Sailpoint status.
+     * Saves both entities to database.
+     * JobServerFilter will decide if job should be re-scheduled after completion.
      */
-    private void processProviderStatus(
-        UUID attemptId,
-        IdentityProviderPort.AccessRequestResponse response) {
+    private void updateAccessRequestAndAttempt(
+            AccessRequest accessRequest, 
+            AccessRequestAttempt attempt, 
+            IdentityProviderPort.SailpointStatusResponse statusResponse,
+            UUID attemptId) {
         
-        switch (response.status()) {
-            case COMPLETED -> {
+        String sailpointStatus = statusResponse.status();
+        
+        switch (sailpointStatus.toUpperCase()) {
+            case "COMPLETED" -> {
                 log.info("✅ Sailpoint returned COMPLETED for attempt: {}", attemptId);
+                
+                // Update AccessRequestAttempt
                 stateService.markAttemptAsCompleted(attemptId);
+                
+                // Update AccessRequest
+                accessRequest.setStatus(AccessRequestStatus.PROCESSING_COMPLETED);
+                accessRequest.setUpdatedAt(java.time.LocalDateTime.now());
+                accessRequestRepository.update(accessRequest);
             }
-            case FAILED -> {
+            case "FAILED" -> {
                 log.error("❌ Sailpoint returned FAILED for attempt: {}. Message: {}", 
-                    attemptId, response.message());
-                stateService.markAttemptAsFailed(attemptId, response.message());
+                        attemptId, statusResponse.message());
+                
+                // Update AccessRequestAttempt
+                stateService.markAttemptAsFailed(attemptId, statusResponse.message());
+                
+                // Update AccessRequest
+                accessRequest.setStatus(AccessRequestStatus.PROCESSING_REQUIRES_ATTENTION);
+                accessRequest.setUpdatedAt(java.time.LocalDateTime.now());
+                accessRequestRepository.update(accessRequest);
             }
-            case IN_PROGRESS -> {
-                log.info("⏳ Sailpoint still processing attempt: {}. Job will continue.", attemptId);
-                // Job continues running
+            case "IN_PROGRESS" -> {
+                log.info("⏳ Sailpoint still processing attempt: {}. " +
+                        "JobServerFilter will re-schedule after job completes.", attemptId);
+                
+                // Update AccessRequest status (might have changed)
+                accessRequest.setStatus(AccessRequestStatus.PROCESSING_IN_PROGRESS);
+                accessRequest.setUpdatedAt(java.time.LocalDateTime.now());
+                accessRequestRepository.update(accessRequest);
+                
+                // Attempt remains IN_PROGRESS, no need to update
+            }
+            default -> {
+                log.warn("⚠️ Unexpected status {} for attempt: {}", sailpointStatus, attemptId);
             }
         }
     }

@@ -32,8 +32,8 @@ sailpoint:
     max-retries: 2
     # Interval between polling attempts in seconds (60s = 1 minute)
     retry-interval-seconds: 20
-    # Initial delay before first polling attempt in seconds
-    initial-delay-seconds: 30
+    # Time to wait between polling checks to Sailpoint in seconds (300s = 5 minutes)
+    interval-seconds: 30
     
 logging:
   level:

@@ -33,11 +33,12 @@ public class PollingConfigurationProperties {
     private int retryIntervalSeconds = 60;
     
     /**
-     * Initial delay before first polling attempt in seconds.
-     * Default: 5 seconds
+     * Time to wait between polling checks to Sailpoint in seconds.
+     * Used when scheduling the next pooling job.
+     * Default: 300 seconds (5 minutes)
      */
-    @Min(0)
-    private int initialDelaySeconds = 5;
+    @Min(1)
+    private int intervalSeconds = 300;
     
     /**
      * Get retry interval as Duration
@@ -47,9 +48,9 @@ public class PollingConfigurationProperties {
     }
     
     /**
-     * Get initial delay as Duration
+     * Get pooling interval as Duration
      */
-    public Duration getInitialDelay() {
-        return Duration.ofSeconds(initialDelaySeconds);
+    public Duration getPoolingInterval() {
+        return Duration.ofSeconds(intervalSeconds);
     }
 }

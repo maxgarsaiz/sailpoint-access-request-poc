@@ -1,33 +1,35 @@
 package com.maxgarsaiz.sailpoint.domain.port.out;
 
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequest;
-
-import java.time.LocalDateTime;
+import com.maxgarsaiz.sailpoint.domain.model.AccessRequestAttempt;
 
 public interface IdentityProviderPort {
     
-    AccessRequest createAccessRequest(AccessRequest accessRequest) throws IdentityClientException;
+    /**
+     * Creates an access request attempt in Sailpoint.
+     * Uses accessRequest.getLastAttempt() to get the attempt to create.
+     * Updates the attempt with sailpointAccessRequestId.
+     * 
+     * @param accessRequest the access request with lastAttempt set
+     * @return the accessRequest with lastAttempt updated with sailpointAccessRequestId
+     * @throws IdentityClientException if communication fails
+     */
+    AccessRequest createAccessRequest(AccessRequest accessRequest) 
+            throws IdentityClientException;
     
     /**
-     * Gets the full access request status from Sailpoint.
+     * Gets the current status of an access request attempt from Sailpoint.
      * 
-     * @param sailpointRequestId the Sailpoint request ID
-     * @return the access request response with current status
+     * @param attempt the attempt to check (must have sailpointAccessRequestId)
+     * @return status response with the current status
+     * @throws IdentityClientException if communication fails
      */
-    AccessRequestResponse getAccessRequest(String sailpointRequestId);
+    SailpointStatusResponse getRequestStatus(AccessRequestAttempt attempt) throws IdentityClientException;
     
-    record AccessRequestResponse(
-        String requestId,
-        RequestStatus status,
-        String message,
-        LocalDateTime lastUpdated
-    ) {}
-    
-    enum RequestStatus {
-        IN_PROGRESS,
-        COMPLETED,
-        FAILED
-    }
+    /**
+     * Response from Sailpoint with status information.
+     */
+    record SailpointStatusResponse(String status, String message) {}
     
     class IdentityClientException extends RuntimeException {
         public IdentityClientException(String message, Throwable cause) {

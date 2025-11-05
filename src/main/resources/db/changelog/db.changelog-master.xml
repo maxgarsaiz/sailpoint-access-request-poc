@@ -7,5 +7,6 @@
 
     <include file="db/changelog/changes/v1.0.0-create-access-request-table.xml"/>
     <include file="db/changelog/changes/v1.1.0-create-access-request-attempt-table.xml"/>
+    <include file="db/changelog/changes/v1.2.0-refactor-sailpoint-id-to-attempt.xml"/>
 
 </databaseChangeLog>

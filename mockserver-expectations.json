@@ -28,8 +28,28 @@
       },
       "body": {
         "requestId": "sp-mock-12345",
-        "status": "PENDING",
-        "message": "Access request created successfully and is being processed"
+        "status": "IN_PROGRESS",
+        "message": "Access request is being processed by Sailpoint"
+      }
+    },
+    "times": {
+      "remainingTimes": 2
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/sailpoint/api/access-requests/.*"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "requestId": "sp-mock-12345",
+        "status": "COMPLETED",
+        "message": "Access request completed successfully"
       }
     }
   }

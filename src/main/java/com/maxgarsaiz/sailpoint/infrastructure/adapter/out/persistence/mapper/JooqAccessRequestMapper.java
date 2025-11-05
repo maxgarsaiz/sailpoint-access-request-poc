@@ -18,7 +18,6 @@ public class JooqAccessRequestMapper {
             .userId((String) record.get("user_id"))
             .justification((String) record.get("justification"))
             .status(AccessRequestStatus.valueOf((String) record.get("status")))
-            .sailpointRequestId((String) record.get("sailpoint_request_id"))
             .createdAt(toLocalDateTime(record.get("created_at")))
             .updatedAt(toLocalDateTime(record.get("updated_at")))
             .build();

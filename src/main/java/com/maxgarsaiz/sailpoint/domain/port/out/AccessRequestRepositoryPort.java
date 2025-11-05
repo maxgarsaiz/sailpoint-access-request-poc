@@ -46,5 +46,14 @@ public interface AccessRequestRepositoryPort {
     List<AccessRequest> findByFilters(RetryFilters filters);
     
     boolean transitionToPendingForRetry(UUID id);
+    
+    /**
+     * Finds an access request by its attempt ID.
+     * Used by JobServerFilter to check if job should continue after completion.
+     * 
+     * @param attemptId the attempt ID
+     * @return Optional containing the access request, or empty if not found
+     */
+    Optional<AccessRequest> findByAttemptId(UUID attemptId);
 }
 

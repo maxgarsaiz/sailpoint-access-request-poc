@@ -15,8 +15,8 @@ import java.util.UUID;
 public class AccessRequestAttempt {
     
     private UUID id;
-    private UUID accessRequestId;
-    private String sailpointRequestId;
+    private UUID accessRequestId;  // Foreign key to AccessRequest
+    private String sailpointAccessRequestId;  // ID returned by Sailpoint for this attempt
     private AttemptStatus status;
     private String errorMessage;
     private LocalDateTime createdAt;
@@ -54,6 +54,6 @@ public class AccessRequestAttempt {
     }
 
     public boolean hasProviderRequestId() {
-        return sailpointRequestId != null && !sailpointRequestId.isBlank();
+        return sailpointAccessRequestId != null && !sailpointAccessRequestId.isBlank();
     }
 }

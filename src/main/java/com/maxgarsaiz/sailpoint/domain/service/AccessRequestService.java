@@ -1,9 +1,10 @@
 package com.maxgarsaiz.sailpoint.domain.service;
 
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequest;
-import com.maxgarsaiz.sailpoint.domain.model.AccessRequestStatus;
+import com.maxgarsaiz.sailpoint.domain.model.AccessRequestAttempt;
 import com.maxgarsaiz.sailpoint.domain.port.in.CreateAccessRequestUseCase;
 import com.maxgarsaiz.sailpoint.domain.port.in.GetAccessRequestUseCase;
+import com.maxgarsaiz.sailpoint.domain.port.out.AccessRequestAttemptRepositoryPort;
 import com.maxgarsaiz.sailpoint.domain.port.out.AccessRequestRepositoryPort;
 import com.maxgarsaiz.sailpoint.domain.port.out.JobSchedulerPort;
 import com.maxgarsaiz.sailpoint.domain.port.out.IdentityProviderPort;
@@ -12,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +22,7 @@ import java.util.UUID;
 public class AccessRequestService implements CreateAccessRequestUseCase, GetAccessRequestUseCase {
     
     private final AccessRequestRepositoryPort repositoryPort;
+    private final AccessRequestAttemptRepositoryPort attemptRepositoryPort;
     private final JobSchedulerPort jobSchedulerPort;
     private final IdentityProviderPort identityProviderPort;
     
@@ -30,60 +31,66 @@ public class AccessRequestService implements CreateAccessRequestUseCase, GetAcce
     public AccessRequest createAccessRequest(CreateAccessRequestCommand command) {
         log.info("Creating access request for user: {}", command.userId());
         
-        // 1. Create domain model
-        AccessRequest accessRequest = AccessRequest.builder()
-            .id(UUID.randomUUID())
-            .userId(command.userId())
-            .justification(command.justification())
-            .status(AccessRequestStatus.PENDING)
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
+        // 1. Create and save AccessRequest entity
+        AccessRequest accessRequest = command.toDomain();
+        AccessRequest savedAccessRequest = repositoryPort.save(accessRequest);
+        log.info("Access request saved to database with id: {}", savedAccessRequest.getId());
         
-        // 2. Save to database
-        AccessRequest saved = repositoryPort.save(accessRequest);
-        log.info("Access request saved to database with id: {}", saved.getId());
+        // 2. Create and save first AccessRequestAttempt
+        AccessRequestAttempt attempt = command.toFirstAttempt(savedAccessRequest.getId());
+        AccessRequestAttempt savedAttempt = attemptRepositoryPort.save(attempt);
+        log.info("Access request attempt created with id: {}", savedAttempt.getId());
+        
+        // 3. Set lastAttempt in AccessRequest (transient field)
+        savedAccessRequest.setLastAttempt(savedAttempt);
         
         try {
-            // 3. Create in Sailpoint (adapter handles all Feign exceptions)
-            AccessRequest withSailpointId = identityProviderPort.createAccessRequest(saved);
+            // 4. Create in Sailpoint (uses lastAttempt from accessRequest)
+            // Returns AccessRequest with lastAttempt updated with sailpointAccessRequestId
+            AccessRequest accessRequestWithAttempt = 
+                    identityProviderPort.createAccessRequest(savedAccessRequest);
             
-            // 4. Update with Sailpoint request ID
-            AccessRequest updated = repositoryPort.update(withSailpointId);
-            log.info("Access request updated with Sailpoint ID: {}", updated.getSailpointRequestId());
+            // 5. Update attempt with Sailpoint access request ID in database
+            AccessRequestAttempt updatedAttempt = accessRequestWithAttempt.getLastAttempt();
+            attemptRepositoryPort.update(updatedAttempt);
+            log.info("Attempt updated with Sailpoint access request ID: {} (attemptId: {})", 
+                    updatedAttempt.getSailpointAccessRequestId(), updatedAttempt.getId());
             
-            // 5. Schedule pooling job to check status
-            jobSchedulerPort.schedulePoolingJob(updated.getId());
-            log.info("Pooling job scheduled for access request: {}", updated.getId());
+            // 6. Schedule pooling job for this attempt
+            jobSchedulerPort.schedulePoolingJob(updatedAttempt.getId());
+            log.info("Pooling job scheduled for attempt: {}", updatedAttempt.getId());
             
-            return updated;
+            return accessRequestWithAttempt;
             
         } catch (IdentityProviderPort.IdentityClientException e) {
-            // Sailpoint creation failed, but we keep the request in PENDING status
+            // Sailpoint creation failed, but we keep the attempt in IN_PROGRESS status
             // The pooling job will retry later or admin can manually handle
-            log.error("Failed to create access request in Sailpoint, keeping in PENDING status. ID: {}", 
-                saved.getId(), e);
+            log.error("Failed to create access request in Sailpoint (attemptId: {})", 
+                    savedAttempt.getId(), e);
             
-            // Still schedule pooling job - it will attempt to create if sailpointRequestId is null
-            jobSchedulerPort.schedulePoolingJob(saved.getId());
-            
-            return saved;
+            return savedAccessRequest;
         }
     }
     
     @Override
     public AccessRequest getById(UUID id) {
         log.debug("Getting access request by id: {}", id);
-        // Now it throws AccessRequestNotFoundException automatically
-        return repositoryPort.findByIdOrThrow(id);
+        
+        // Get AccessRequest
+        AccessRequest accessRequest = repositoryPort.findByIdOrThrow(id);
+        
+        // Load and set lastAttempt (transient field)
+        AccessRequestAttempt lastAttempt = accessRequest.getLastAttempt();
+        if (lastAttempt != null) {
+            accessRequest.setLastAttempt(lastAttempt);
+        }
+        
+        return accessRequest;
     }
     
     @Override
     public List<AccessRequest> getAll() {
         log.debug("Getting all access requests");
-        return repositoryPort.findByStatusIn(
-            List.of(AccessRequestStatus.PENDING, AccessRequestStatus.PROCESSING_IN_PROGRESS, 
-                    AccessRequestStatus.PROCESSING_REQUIRES_ATTENTION, AccessRequestStatus.PROCESSING_COMPLETED)
-        );
+        return repositoryPort.findAll();
     }
 }

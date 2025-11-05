@@ -3,7 +3,6 @@ package com.maxgarsaiz.sailpoint.domain.service;
 import com.maxgarsaiz.sailpoint.domain.model.AccessRequestAttempt;
 import com.maxgarsaiz.sailpoint.domain.port.in.ManageAccessRequestAttemptStateUseCase;
 import com.maxgarsaiz.sailpoint.domain.port.out.AccessRequestAttemptRepositoryPort;
-import com.maxgarsaiz.sailpoint.domain.port.out.JobSchedulerPort;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +21,6 @@ import java.util.UUID;
 public class AccessRequestAttemptStateService implements ManageAccessRequestAttemptStateUseCase {
     
     private final AccessRequestAttemptRepositoryPort attemptRepository;
-    private final JobSchedulerPort jobSchedulerPort;
     
     @Override
     @Transactional
@@ -31,14 +29,11 @@ public class AccessRequestAttemptStateService implements ManageAccessRequestAtte
         
         AccessRequestAttempt attempt = attemptRepository.findByIdOrThrow(attemptId);
         
-        // 1. Update attempt status
+        // Update attempt status
         attempt.markAsCompleted();
         attemptRepository.update(attempt);
         
-        // 2. Delete recurring job
-        jobSchedulerPort.deleteRecurringJob(attemptId);
-        
-        log.info("✅ Attempt {} marked as COMPLETED and job deleted", attemptId);
+        log.info("✅ Attempt {} marked as COMPLETED. Job will naturally complete.", attemptId);
     }
     
     @Override
@@ -48,25 +43,22 @@ public class AccessRequestAttemptStateService implements ManageAccessRequestAtte
         
         AccessRequestAttempt attempt = attemptRepository.findByIdOrThrow(attemptId);
         
-        // 1. Update attempt status
+        // Update attempt status
         attempt.markAsFailed(errorMessage);
         attemptRepository.update(attempt);
         
-        // 2. Delete recurring job
-        jobSchedulerPort.deleteRecurringJob(attemptId);
-        
-        log.error("❌ Attempt {} marked as FAILED and job deleted", attemptId);
+        log.error("❌ Attempt {} marked as FAILED. Job will naturally complete.", attemptId);
     }
     
     @Override
     @Transactional
     public void handleJobExhaustedRetries(UUID attemptId) {
-        log.warn("⚠️ Job exhausted retries for attempt {}, deleting job but keeping status IN_PROGRESS", 
+        log.warn("⚠️ Job exhausted retries for attempt {}. Status remains IN_PROGRESS for manual retry.", 
             attemptId);
         
-        // Only delete the job, keep status as IN_PROGRESS for manual retry
-        jobSchedulerPort.deleteRecurringJob(attemptId);
+        // Keep status as IN_PROGRESS for manual retry
+        // Job will naturally stop after exhausting retries
         
-        log.info("🗑️ Recurring job deleted for attempt {} (status remains IN_PROGRESS)", attemptId);
+        log.info("⚠️ Attempt {} remains IN_PROGRESS for manual investigation and retry", attemptId);
     }
 }

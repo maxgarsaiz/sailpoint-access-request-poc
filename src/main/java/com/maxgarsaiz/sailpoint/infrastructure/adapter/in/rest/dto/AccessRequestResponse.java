@@ -9,10 +9,9 @@ import java.util.UUID;
 public record AccessRequestResponse(
     UUID id,
     String userId,
-    String accessType,
     String justification,
     AccessRequestStatus status,
-    String sailpointRequestId,
+    String sailpointAccessRequestId,  // From lastAttempt
     LocalDateTime createdAt,
     LocalDateTime updatedAt
 ) {
@@ -20,10 +19,9 @@ public record AccessRequestResponse(
         return new AccessRequestResponse(
             accessRequest.getId(),
             accessRequest.getUserId(),
-            accessRequest.getAccessType(),
             accessRequest.getJustification(),
             accessRequest.getStatus(),
-            accessRequest.getSailpointRequestId(),
+            accessRequest.getSailpointAccessRequestId(),  // Gets from lastAttempt
             accessRequest.getCreatedAt(),
             accessRequest.getUpdatedAt()
         );

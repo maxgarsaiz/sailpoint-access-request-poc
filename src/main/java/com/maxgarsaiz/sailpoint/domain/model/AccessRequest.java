@@ -20,7 +20,6 @@ public class AccessRequest {
     private UUID id;
     private String userId;
     private String justification;
-    private String sailpointRequestId;
     private AccessRequestStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -29,12 +28,37 @@ public class AccessRequest {
     private List<AccessRequestAttempt> attempts = new ArrayList<>();
     
     /**
+     * Transient field - Last attempt (not persisted, calculated from attempts list).
+     * Used for creation and pooling logic.
+     */
+    private transient AccessRequestAttempt lastAttempt;
+    
+    /**
      * Gets the last attempt (most recent by creation date).
+     * Returns transient lastAttempt if available, otherwise calculates from attempts list.
      */
     public AccessRequestAttempt getLastAttempt() {
+        if (lastAttempt != null) {
+            return lastAttempt;
+        }
         return attempts.stream()
             .max(Comparator.comparing(AccessRequestAttempt::getCreatedAt))
             .orElse(null);
+    }
+    
+    /**
+     * Sets the last attempt (transient field).
+     */
+    public void setLastAttempt(AccessRequestAttempt attempt) {
+        this.lastAttempt = attempt;
+    }
+    
+    /**
+     * Gets the Sailpoint access request ID from the last attempt.
+     */
+    public String getSailpointAccessRequestId() {
+        AccessRequestAttempt attempt = getLastAttempt();
+        return attempt != null ? attempt.getSailpointAccessRequestId() : null;
     }
     
     /**
@@ -50,7 +74,7 @@ public class AccessRequest {
         AccessRequestAttempt lastAttempt = getLastAttempt();
         
         if (lastAttempt == null) {
-            return AccessRequestStatus.PENDING;
+            return AccessRequestStatus.PROCESSING_IN_PROGRESS;
         }
         
         return switch (lastAttempt.getStatus()) {
